@@ -1,0 +1,28 @@
+# Binaries & compiled outputs
+gpd
+parallel-downloader
+main
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Downloaded files & temporary chunk parts
+*.bin
+part_*.bin
+/*.mp4
+/*.mkv
+/*.avi
+/*.mov
+/*.zip
+/*.tar.gz
+/*.iso
+
+# OS & Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*~
