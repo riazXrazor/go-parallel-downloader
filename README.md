@@ -1,6 +1,6 @@
 # Go Parallel Downloader (`gpd`)
 
-A high-performance, concurrent command-line file downloader written in Go.
+My attempt at making a high-performance, concurrent command-line file downloader written in Go.
 
 This project was built as an exploration into Go's concurrency primitives (`goroutines`, `sync.WaitGroup`, `channels`), POSIX-level concurrent file I/O (`pwrite`/`WriteAt`), and HTTP byte-range specifications (`RFC 7233`).
 
