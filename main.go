@@ -82,14 +82,14 @@ func main() {
 	if !supportRange {
 		wg.Add(1)
 		fmt.Println("Downloading at once since file doesnt support multiple chunks i.e Range header")
-		go download_full(client, url, file, &wg, progressChan)
+		go downloadFull(client, url, file, &wg, progressChan)
 	} else {
 		fmt.Printf("Downloading with %d connections\n", numChunks)
 		parts := make(map[string]FilePart)
 		chunkSize := totalFileSize / numChunks
 		for i := int64(0); i < numChunks; i++ {
 			wg.Add(1)
-			key := part_name(i)
+			key := partName(i)
 			starByte := i * chunkSize
 			endByte := starByte + chunkSize - 1
 
@@ -102,7 +102,7 @@ func main() {
 				end:   endByte,
 			}
 
-			go download_chunk(client, url, parts[key], file, &wg, progressChan)
+			go downloadChunk(client, url, parts[key], file, &wg, progressChan)
 
 		}
 	}
@@ -141,19 +141,19 @@ func calculateChunks(totalFileSize int64) int64 {
 	}
 }
 
-func part_name(i any) string {
+func partName(i any) string {
 	return PartName + fmt.Sprintf("%d", i) + PartSufix
 }
 
-func download_chunk(c *http.Client, url string, chunk_data FilePart, file *os.File, wg *sync.WaitGroup, progress chan int64) {
+func downloadChunk(c *http.Client, url string, chunkData FilePart, file *os.File, wg *sync.WaitGroup, progress chan int64) {
 	defer wg.Done()
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", url, http.NoBody)
 	if err != nil {
 		panic(err)
 	}
 
-	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", chunk_data.start, chunk_data.end))
+	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", chunkData.start, chunkData.end))
 	req.Header.Set("Accept-Encoding", "identity")
 
 	res, err := c.Do(req)
@@ -168,7 +168,7 @@ func download_chunk(c *http.Client, url string, chunk_data FilePart, file *os.Fi
 	defer res.Body.Close()
 
 	buf := make([]byte, 32*1024)
-	currentWriteOffset := chunk_data.start
+	currentWriteOffset := chunkData.start
 	for {
 		n, err := res.Body.Read(buf)
 
@@ -189,10 +189,10 @@ func download_chunk(c *http.Client, url string, chunk_data FilePart, file *os.Fi
 	}
 }
 
-func download_full(c *http.Client, url string, file *os.File, wg *sync.WaitGroup, progress chan int64) {
+func downloadFull(c *http.Client, url string, file *os.File, wg *sync.WaitGroup, progress chan<- int64) {
 	defer wg.Done()
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", url, http.NoBody)
 	if err != nil {
 		panic(err)
 	}
