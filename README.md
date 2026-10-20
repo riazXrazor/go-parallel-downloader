@@ -188,5 +188,5 @@ parallel-downloader/
 
 ## 📄 License
 
-This project is licensed under the [MIT License](file:///home/razor/codeing/parallel-downloader/LICENSE).
+This project is licensed under the [MIT License](https://raw.githubusercontent.com/riazXrazor/go-parallel-downloader/refs/heads/master/LICENSE).
 
