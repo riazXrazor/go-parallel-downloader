@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"os"
 	"path"
@@ -10,18 +11,15 @@ import (
 	"time"
 )
 
-type FilePart struct {
+type ChunkSlice struct {
 	start int64
 	end   int64
 }
 
-const (
-	PartName  = "part_"
-	PartSufix = ".bin"
-)
-
 // https://test-videos.co.uk/vids/bigbuckbunny/mp4/av1/360/Big_Buck_Bunny_360_10s_1MB.mp4
 // https://test-videos.co.uk/vids/bigbuckbunny/mp4/av1/1080/Big_Buck_Bunny_1080_10s_5MB.mp4
+// https://testfileorg.netwet.net/500MB-CZIPtestfile.org.zip
+// https://pub-821312cfd07a4061bf7b99c1f23ed29b.r2.dev/3dicons-png-dynamic-1.0.0.zip 1.26 GB
 func main() {
 	start := time.Now()
 	argv := os.Args
@@ -68,28 +66,38 @@ func main() {
 
 	progressDoneChan := make(chan struct{})
 	go func() {
-		var totaldlownloaded int64
+		var totalDownloaded int64
 		for n := range progressChan {
-			totaldlownloaded += n
-			pct := float64(totaldlownloaded) / float64(totalFileSize) * 100
+			totalDownloaded += n
+			progressPercent := float64(totalDownloaded) / float64(totalFileSize) * 100
+			progressBar := ""
+			progressBarMaxWidth := 50
+			progressBarLen := progressPercent * float64(progressBarMaxWidth) / 100
+			for i := 1; i <= progressBarMaxWidth; i++ {
+				if i <= int(progressBarLen) {
+					progressBar += "█"
+				} else {
+					progressBar += "▒"
+				}
+			}
 
-			fmt.Printf("\r\033[KDownload Progress: %.2f%% (%d/%d) bytes", pct, totaldlownloaded, totalFileSize)
+			fmt.Fprintf(os.Stdout, "\033[KProgress: %s\033[1B\r", progressBar)
+			fmt.Fprintf(os.Stdout, "\033[KDownload Progress: %.2f%% (%s/%s)\033[1A\r", progressPercent, HumanReadableBytes(totalDownloaded), HumanReadableBytes(totalFileSize))
 		}
+		fmt.Println()
 		fmt.Println()
 		close(progressDoneChan)
 	}()
 
 	if !supportRange {
 		wg.Add(1)
-		fmt.Println("Downloading at once since file doesnt support multiple chunks i.e Range header")
+		fmt.Println("Downloading at once since file does not support multiple chunks i.e Range header")
 		go downloadFull(client, url, file, &wg, progressChan)
 	} else {
 		fmt.Printf("Downloading with %d connections\n", numChunks)
-		parts := make(map[string]FilePart)
 		chunkSize := totalFileSize / numChunks
 		for i := int64(0); i < numChunks; i++ {
 			wg.Add(1)
-			key := partName(i)
 			starByte := i * chunkSize
 			endByte := starByte + chunkSize - 1
 
@@ -97,12 +105,12 @@ func main() {
 				endByte = totalFileSize - 1
 			}
 
-			parts[key] = FilePart{
+			part := ChunkSlice{
 				start: starByte,
 				end:   endByte,
 			}
 
-			go downloadChunk(client, url, parts[key], file, &wg, progressChan)
+			go downloadChunk(client, url, part, file, &wg, progressChan)
 
 		}
 	}
@@ -113,7 +121,19 @@ func main() {
 
 	elapsed := time.Since(start)
 
-	fmt.Printf("download took taken %v seconds\n", elapsed.Seconds())
+	fmt.Printf("Download took %s \n", elapsed.Round(time.Millisecond).String())
+}
+
+func HumanReadableBytes(bytes int64) string {
+	units := []string{"B", "KB", "MB", "GB", "TB", "PB", "EB"}
+	if bytes == 0 {
+		return "0 B"
+	}
+	exp := int(math.Log(float64(bytes)) / math.Log(1024))
+	if exp >= len(units) {
+		exp = len(units) - 1
+	}
+	return fmt.Sprintf("%.2f %s", float64(bytes)/math.Pow(1024, float64(exp)), units[exp])
 }
 
 func getFileName(url string) string {
@@ -141,11 +161,7 @@ func calculateChunks(totalFileSize int64) int64 {
 	}
 }
 
-func partName(i any) string {
-	return PartName + fmt.Sprintf("%d", i) + PartSufix
-}
-
-func downloadChunk(c *http.Client, url string, chunkData FilePart, file *os.File, wg *sync.WaitGroup, progress chan int64) {
+func downloadChunk(c *http.Client, url string, chunkData ChunkSlice, file *os.File, wg *sync.WaitGroup, progress chan int64) {
 	defer wg.Done()
 
 	req, err := http.NewRequest("GET", url, http.NoBody)
